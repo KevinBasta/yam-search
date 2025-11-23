@@ -7,8 +7,7 @@ rows = cursor.fetchall()
 
 print("printing now")
 for row in rows:
-    print("printing row")
-    print(row)
+    print(row, "\n")
 
 conn.commit()
 conn.close()

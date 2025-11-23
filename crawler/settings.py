@@ -14,6 +14,8 @@ NEWSPIDER_MODULE = "crawler.spiders"
 
 ADDONS = {}
 
+CLOSESPIDER_PAGECOUNT = 5
+
 
 # Crawl responsibly by identifying yourself (and your website) on the user-agent
 #USER_AGENT = "crawler (+http://www.yourdomain.com)"

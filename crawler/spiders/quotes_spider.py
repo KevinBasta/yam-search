@@ -12,6 +12,7 @@ class QuotesSpider(scrapy.Spider):
     def __init__(self):
         self.total_crawled = 0
         self.docId = 1
+        self.url_to_outlinks = {}  
 
         # set up db tables
         conn = sqlite3.connect('out/document_collection.db')
@@ -35,26 +36,30 @@ class QuotesSpider(scrapy.Spider):
         # increase docId for next doc
         self.docId += 1
 
-    def parse(self, response):
-        if (self.total_crawled > 10):
-            print("CRAWLED 10 PAGES, EXIT")
-            return
-        
-        self.total_crawled += 1
-        
-        # remove all html tags, keep their content
-        body = BeautifulSoup(response.body, features="html.parser").get_text()
-        self.writeToDB(response.url, body)
-        yield {}
+    def parse(self, response, parent_url=None):
+        # Add current url as a parent
+        self.url_to_outlinks[response.url] = []
 
+        # Add current url as a child to parent
+        if parent_url is not None:
+            self.url_to_outlinks.setdefault(parent_url, []).append(response.url)  
 
-        # generate docid
-        # save outlinks
+        if response.url not in self.url_to_outlinks:
+            self.total_crawled += 1
+            
+            # remove all html tags, keep their content
+            body = BeautifulSoup(response.body, features="html.parser").get_text()
+            self.writeToDB(response.url, body)
+            yield {}
 
-        #page = response.url.split("/")[-2]
-        #filename = f"quotes-{page}.html"
-        #Path(filename).write_bytes(response.body)
-        #self.log(f"Saved file {filename}")
-        
-        anchors = response.css("ul.pager a")
-        yield from response.follow_all(anchors, callback=self.parse)
+            anchors = response.css("a")
+            yield from response.follow_all(anchors, callback=self.parse, cb_kwargs={"parent_url": response.url})
+        else:
+            yield {}
+
+    def closed(self, reason):
+        # pagerank algorithm
+
+        print("PAGE RANK")
+        for i in self.url_to_outlinks:
+            print(i)
