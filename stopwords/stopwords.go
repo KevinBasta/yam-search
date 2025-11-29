@@ -9,10 +9,10 @@ import (
 	"github.com/blevesearch/snowballstem"
 )
 
-var stopWords = make(map[string]int)
-var snowballEnv = snowballstem.NewEnv("")
+var Map = make(map[string]int)
+var SnowballEnv = snowballstem.NewEnv("")
 
-func loadStopWords(path string) error {
+func LoadStopWords(path string) error {
 	file, err := os.Open(path)
 	if err != nil {
 		return err
@@ -21,7 +21,7 @@ func loadStopWords(path string) error {
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		stopWords[scanner.Text()] = 0
+		Map[scanner.Text()] = 0
 	}
 
 	err = scanner.Err()
@@ -32,7 +32,7 @@ func loadStopWords(path string) error {
 	return nil
 }
 
-func formatWord(word *string) {
+func FormatWord(word *string) {
 	*word = strings.ToLower(*word)
 
 	isPunctuation := func(c rune) bool {

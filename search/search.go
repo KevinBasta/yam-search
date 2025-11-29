@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+
+	"github.com/KevinBasta/yam-search/stopwords"
 )
 
 func main() {
@@ -10,7 +12,7 @@ func main() {
 	//dictionaryDB := "../out/dictionary.db"
 	stopWordsPath := "../out/stopwords.txt"
 
-	err := loadStopWords(stopWordsPath)
+	err := stopwords.LoadStopWords(stopWordsPath)
 	if err != nil {
 		fmt.Println(err)
 	}

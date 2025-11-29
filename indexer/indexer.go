@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/KevinBasta/yam-search/stopwords"
 	_ "modernc.org/sqlite" // Import the SQLite driver
 )
 
@@ -52,7 +53,7 @@ func createIndex(collectionDB string, indexDB string, dictionaryDB string) error
 		}
 
 		err = doc.index(idb, ddb)
-		fmt.Println(err)
+		//fmt.Println(err)
 	}
 
 	return nil
@@ -64,7 +65,7 @@ func main() {
 	dictionaryDB := "../out/dictionary.db"
 	stopWordsPath := "../out/stopwords.txt"
 
-	err := loadStopWords(stopWordsPath)
+	err := stopwords.LoadStopWords(stopWordsPath)
 	if err != nil {
 		fmt.Println(err)
 	}
