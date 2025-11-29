@@ -1,4 +1,4 @@
-module www.github.com/KevinBasta/yam-search/tree/main/indexer
+module www.github.com/KevinBasta/yam-search/indexer
 
 go 1.24.6
 
@@ -16,4 +16,6 @@ require (
 	modernc.org/libc v1.66.10 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
+	github.com/KevinBasta/yam-search/stopwords v0.0.0
+	github.com/KevinBasta/yam-search/stopwords => ../stopwords.go
 )
