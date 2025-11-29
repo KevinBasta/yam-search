@@ -6,6 +6,10 @@ import (
 	"github.com/KevinBasta/yam-search/stopwords"
 )
 
+func search() {
+
+}
+
 func main() {
 	//collectionDB := "../out/document_collection.db"
 	//indexDB := "../out/index.db"

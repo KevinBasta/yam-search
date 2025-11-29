@@ -18,7 +18,6 @@ class QuotesSpider(scrapy.Spider):
         # set up db tables
         conn = sqlite3.connect('out/document_collection.db')
         cursor = conn.cursor()
-        cursor.execute("DROP TABLE IF EXISTS docIdToUrlAndBody;")
         cursor.execute("DROP TABLE IF EXISTS docIdToData;")
         cursor.execute('CREATE TABLE docIdToData (docId INTEGER PRIMARY KEY, url TEXT, title TEXT, body TEXT, pagerank INTEGER);')
         conn.commit()

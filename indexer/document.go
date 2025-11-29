@@ -26,7 +26,7 @@ func (doc *Document) getNextDocument(db *sql.DB) error {
 	row := db.QueryRow("SELECT * FROM docIdToData WHERE docId = ?", doc.docId)
 	err := row.Scan(&docId, &doc.url, &doc.title, &doc.body, &pagerank)
 	if err != nil {
-		*doc = Document{doc.docId, "", "", ""}
+		*doc = Document{doc.docId - 1, "", "", ""}
 		return err
 	}
 

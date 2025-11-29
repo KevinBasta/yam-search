@@ -28,6 +28,11 @@ func createIndex(collectionDB string, indexDB string, dictionaryDB string) error
 	if err != nil {
 		return err
 	}
+
+	_, err = idb.Exec("CREATE TABLE metadata (key TEXT PRIMARY KEY, value INTEGER);")
+	if err != nil {
+		return err
+	}
 	defer idb.Close()
 
 	// Create db for dictionary
@@ -43,6 +48,7 @@ func createIndex(collectionDB string, indexDB string, dictionaryDB string) error
 	}
 	defer ddb.Close()
 
+	// Index each document
 	doc := Document{0, "", "", ""}
 	for {
 		err = doc.getNextDocument(cdb)
@@ -53,7 +59,13 @@ func createIndex(collectionDB string, indexDB string, dictionaryDB string) error
 		}
 
 		err = doc.index(idb, ddb)
-		//fmt.Println(err)
+		fmt.Println(err)
+	}
+
+	// Output totalDocuments metadata
+	_, err = idb.Exec("INSERT INTO metadata(key, value) VALUES(?, ?)", "totalDocs", doc.docId)
+	if err != nil {
+		return err
 	}
 
 	return nil
