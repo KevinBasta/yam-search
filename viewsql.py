@@ -1,13 +1,13 @@
 import sqlite3
 
-conn = sqlite3.connect('out/document_collection.db')
+conn = sqlite3.connect('out/index.db')
 cursor = conn.cursor()
-cursor.execute('SELECT * FROM docIdToData;')
+cursor.execute('SELECT docIds FROM termToDocs;')
 rows = cursor.fetchall()
 
 print("printing now")
 for row in rows:
-    print(row, "\n")
+    print(row[0].decode('utf-8'), "\n")
 
 conn.commit()
 conn.close()

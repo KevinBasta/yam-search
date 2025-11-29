@@ -93,7 +93,7 @@ func (doc *Document) index(idb *sql.DB, ddb *sql.DB) error {
 		} else {
 			// handle term being in term -> frequency
 			frequency += addFrequency
-			_, err := ddb.Exec("INSERT INTO termToFrequency(term, frequency) VALUES(?, ?)", word, frequency)
+			_, err := ddb.Exec("UPDATE termToFrequency set frequency = ? WHERE term = ?", frequency, word)
 			if err != nil {
 				return err
 			}
@@ -111,12 +111,8 @@ func (doc *Document) index(idb *sql.DB, ddb *sql.DB) error {
 				return err
 			}
 
-			for _, i := range docIds {
-				fmt.Print(i)
-			}
-
 			// write out new term to docId mapping
-			_, err = idb.Exec("INSERT OR REPLACE INTO termToDocs(term, docIds) VALUES(?, ?)", word, updatedJsonDocIds)
+			_, err = idb.Exec("INSERT INTO termToDocs(term, docIds) VALUES(?, ?)", word, updatedJsonDocIds)
 			if err != nil {
 				return err
 			}
@@ -130,17 +126,13 @@ func (doc *Document) index(idb *sql.DB, ddb *sql.DB) error {
 
 			// add this docId
 			docIds = append(docIds, doc.docId)
-			for _, i := range docIds {
-				fmt.Print(i)
-			}
-
 			updatedJsonDocIds, err := json.Marshal(docIds)
 			if err != nil {
 				return err
 			}
 
 			// write out with new docId included
-			_, err = idb.Exec("INSERT OR REPLACE INTO termToDocs(term, docIds) VALUES(?, ?)", word, updatedJsonDocIds)
+			_, err = idb.Exec("UPDATE termToDocs SET docIds = ? WHERE term = ?", updatedJsonDocIds, word)
 			if err != nil {
 				return err
 			}
@@ -193,7 +185,8 @@ func createIndex(collectionDB string, indexDB string, dictionaryDB string) error
 			break
 		}
 
-		doc.index(idb, ddb)
+		err = doc.index(idb, ddb)
+		fmt.Println(err)
 	}
 
 	return nil
