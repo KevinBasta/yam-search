@@ -17,6 +17,11 @@ type Document struct {
 	body  string
 }
 
+type posting struct {
+	docId     int
+	frequency int
+}
+
 func (doc *Document) getNextDocument(db *sql.DB) error {
 	doc.docId++
 
@@ -62,60 +67,61 @@ func (doc *Document) index(idb *sql.DB, ddb *sql.DB) error {
 	}
 
 	// add term -> docIds and update term -> frequency in dbs
-	for word, addFrequency := range wordToFreqency {
+	for word, frequency := range wordToFreqency {
 		// term -> frequency
-		var frequency int
+		var currentDocumentFrequency int
 		dictionaryEntry := ddb.QueryRow("SELECT frequency FROM termToFrequency WHERE term = ?", word)
-		dictionaryErr := dictionaryEntry.Scan(&frequency)
+		dictionaryErr := dictionaryEntry.Scan(&currentDocumentFrequency)
 		if dictionaryErr != nil {
 			// handle term not being in term -> frequency
-			_, err := ddb.Exec("INSERT INTO termToFrequency(term, frequency) VALUES(?, ?)", word, addFrequency)
+			_, err := ddb.Exec("INSERT INTO termToFrequency(term, frequency) VALUES(?, ?)", word, 1)
 			if err != nil {
 				return err
 			}
 		} else {
 			// handle term being in term -> frequency
-			frequency += addFrequency
-			_, err := ddb.Exec("UPDATE termToFrequency set frequency = ? WHERE term = ?", frequency, word)
+			updatedDocumentFrequency := currentDocumentFrequency + 1
+			_, err := ddb.Exec("UPDATE termToFrequency set frequency = ? WHERE term = ?", updatedDocumentFrequency, word)
 			if err != nil {
 				return err
 			}
 		}
 
 		// term -> docIds
-		var jsonDocIds string
-		indexEntry := idb.QueryRow("SELECT docIds FROM termToDocs WHERE term = ?", word)
-		indexErr := indexEntry.Scan(&jsonDocIds)
+		var jsonPostingList string
+		indexEntry := idb.QueryRow("SELECT postingList FROM termToPostingList WHERE term = ?", word)
+		indexErr := indexEntry.Scan(&jsonPostingList)
 		if indexErr != nil {
 			// create a json list with this docId
-			var docIds = [1]int{doc.docId}
-			updatedJsonDocIds, err := json.Marshal(docIds)
+			var postingList = [1]posting{{doc.docId, frequency}}
+			updatedJsonPostingList, err := json.Marshal(postingList)
 			if err != nil {
 				return err
 			}
 
 			// write out new term to docId mapping
-			_, err = idb.Exec("INSERT INTO termToDocs(term, docIds) VALUES(?, ?)", word, updatedJsonDocIds)
+			_, err = idb.Exec("INSERT INTO termToPostingList(term, postingList) VALUES(?, ?)", word, updatedJsonPostingList)
 			if err != nil {
 				return err
 			}
 		} else {
 			// get already written docIds
-			var docIds []int
-			err := json.Unmarshal([]byte(jsonDocIds), &docIds)
+			var postingList []posting
+			err := json.Unmarshal([]byte(jsonPostingList), &postingList)
 			if err != nil {
 				return err
 			}
 
 			// add this docId
-			docIds = append(docIds, doc.docId)
-			updatedJsonDocIds, err := json.Marshal(docIds)
+			newEntry := posting{doc.docId, frequency}
+			postingList = append(postingList, newEntry)
+			updatedJsonPostingList, err := json.Marshal(postingList)
 			if err != nil {
 				return err
 			}
 
 			// write out with new docId included
-			_, err = idb.Exec("UPDATE termToDocs SET docIds = ? WHERE term = ?", updatedJsonDocIds, word)
+			_, err = idb.Exec("UPDATE termToPostingList SET postingList = ? WHERE term = ?", updatedJsonPostingList, word)
 			if err != nil {
 				return err
 			}

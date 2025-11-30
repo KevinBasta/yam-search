@@ -24,7 +24,7 @@ func createIndex(collectionDB string, indexDB string, dictionaryDB string) error
 		return ierr
 	}
 
-	_, err := idb.Exec("CREATE TABLE termToDocs (term TEXT PRIMARY KEY, docIds TEXT);")
+	_, err := idb.Exec("CREATE TABLE termToPostingList (term TEXT PRIMARY KEY, postingList TEXT);")
 	if err != nil {
 		return err
 	}
