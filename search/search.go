@@ -56,6 +56,23 @@ func getPostingList(indexDB string, term string) (map[int]int, error) {
 	return postingList, nil
 }
 
+func getDocumentLength(indexDB string, docId int) (float64, error) {
+	idb, ierr := sql.Open("sqlite", indexDB)
+	if ierr != nil {
+		return 0.0, ierr
+	}
+	defer idb.Close()
+
+	var docLength float64
+	indexEntry := idb.QueryRow("SELECT length FROM docIdToLength WHERE docID = ?", docId)
+	indexErr := indexEntry.Scan(&docLength)
+	if indexErr != nil {
+		return 0.0, indexErr
+	}
+
+	return docLength, nil
+}
+
 // map: term -> (weight = idf * tf)
 func processQuery(query string) (map[string]float64, float64, error) {
 	var wordToFreqency = make(map[string]int)
@@ -186,12 +203,11 @@ func search(indexDB string, collectionDB string, query string) ([]searchResult, 
 				}
 			}
 
-			// calculate document length
-			var documentLength float64
-			for _, weight := range documentWordToWeight {
-				documentLength += math.Pow(weight, 2.0)
+			// fetch document length
+			documentLength, err := getDocumentLength(indexDB, docId)
+			if err != nil {
+				return nil, err
 			}
-			documentLength = math.Sqrt(documentLength)
 
 			// calculate cosine similarity
 			var numerator float64 = 0.0
