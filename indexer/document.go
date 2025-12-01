@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/KevinBasta/yam-search/stopwords"
+	"github.com/KevinBasta/yam-search/common"
 	"github.com/blevesearch/snowballstem/english"
 )
 
@@ -42,21 +42,21 @@ func (doc *Document) index(idb *sql.DB, ddb *sql.DB) error {
 	words := strings.Fields(doc.body)
 	for _, word := range words {
 		// trim both ends of word of non number or letter characters
-		stopwords.FormatWord(&word)
+		common.FormatWord(&word)
 		if word == "" {
 			continue
 		}
 
 		// skip this word if it's a stop word
-		_, isStopWord := stopwords.Map[word]
+		_, isStopWord := common.StopWords[word]
 		if isStopWord {
 			continue
 		}
 
 		// stem the word
-		stopwords.SnowballEnv.SetCurrent(word)
-		english.Stem(stopwords.SnowballEnv)
-		word = stopwords.SnowballEnv.Current()
+		common.SnowballEnv.SetCurrent(word)
+		english.Stem(common.SnowballEnv)
+		word = common.SnowballEnv.Current()
 
 		wordToFreqency[word]++
 	}

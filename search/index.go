@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/KevinBasta/yam-search/stopwords"
+	"github.com/KevinBasta/yam-search/common"
 	"github.com/blevesearch/snowballstem/english"
 )
 
@@ -64,21 +64,21 @@ func processQuery(query string) (map[string]float64, float64, error) {
 	words := strings.Fields(query)
 	for _, word := range words {
 		// trim both ends of word of non number or letter characters
-		stopwords.FormatWord(&word)
+		common.FormatWord(&word)
 		if word == "" {
 			continue
 		}
 
 		// skip this word if it's a stop word
-		_, isStopWord := stopwords.Map[word]
+		_, isStopWord := common.StopWords[word]
 		if isStopWord {
 			continue
 		}
 
 		// stem the word
-		stopwords.SnowballEnv.SetCurrent(word)
-		english.Stem(stopwords.SnowballEnv)
-		word = stopwords.SnowballEnv.Current()
+		common.SnowballEnv.SetCurrent(word)
+		english.Stem(common.SnowballEnv)
+		word = common.SnowballEnv.Current()
 
 		wordToFreqency[word]++
 	}
@@ -156,6 +156,12 @@ func search(indexDB string, collectionDB string, query string) ([]searchResult, 
 	var docIdToCosineSimilarity = make(map[int]float64)
 	// search by highest idf term to lowest idf term
 	for _, loopTerm := range sortedQueryTerms {
+		// cut off if idf is 0
+		// idf, hasIdf := dictionary[loopTerm]
+		// if !hasIdf || (hasIdf && idf == 0) {
+		// 	continue
+		// }
+
 		// calculate the cosine similarity between a document and the query
 
 		for docId, _ := range termToPostingList[loopTerm] {

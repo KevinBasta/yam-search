@@ -1,4 +1,4 @@
-package stopwords
+package common
 
 import (
 	"bufio"
@@ -9,7 +9,7 @@ import (
 	"github.com/blevesearch/snowballstem"
 )
 
-var Map = make(map[string]int)
+var StopWords = make(map[string]int)
 var SnowballEnv = snowballstem.NewEnv("")
 
 func LoadStopWords(path string) error {
@@ -21,7 +21,7 @@ func LoadStopWords(path string) error {
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		Map[scanner.Text()] = 0
+		StopWords[scanner.Text()] = 0
 	}
 
 	err = scanner.Err()

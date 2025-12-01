@@ -1,4 +1,4 @@
-module github.com/KevinBasta/yam-search/stopwords
+module github.com/KevinBasta/yam-search/common
 
 go 1.24.6
 

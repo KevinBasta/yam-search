@@ -6,7 +6,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/KevinBasta/yam-search/stopwords"
+	"github.com/KevinBasta/yam-search/common"
 )
 
 var indexDB string = "../out/index.db"
@@ -42,7 +42,7 @@ func main() {
 	stopWordsPath := "../out/stopwords.txt"
 
 	// Load stop words, total doc amount, and dictionary
-	err := stopwords.LoadStopWords(stopWordsPath)
+	err := common.LoadStopWords(stopWordsPath)
 	if err != nil {
 		fmt.Println(err)
 	}

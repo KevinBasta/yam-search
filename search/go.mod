@@ -3,11 +3,8 @@ module www.github.com/KevinBasta/yam-search/search
 go 1.24.6
 
 require (
-	github.com/KevinBasta/yam-search/stopwords v0.0.0
+	github.com/KevinBasta/yam-search/common v0.0.0
 	modernc.org/sqlite v1.40.1
-)
-
-require (
 	github.com/blevesearch/snowballstem v0.9.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
@@ -21,4 +18,4 @@ require (
 	modernc.org/memory v1.11.0 // indirect
 )
 
-replace github.com/KevinBasta/yam-search/stopwords => ../stopwords
+replace github.com/KevinBasta/yam-search/common => ../common

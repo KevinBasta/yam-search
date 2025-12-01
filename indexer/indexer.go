@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/KevinBasta/yam-search/stopwords"
+	"github.com/KevinBasta/yam-search/common"
 	_ "modernc.org/sqlite" // Import the SQLite driver
 )
 
@@ -77,7 +77,7 @@ func main() {
 	dictionaryDB := "../out/dictionary.db"
 	stopWordsPath := "../out/stopwords.txt"
 
-	err := stopwords.LoadStopWords(stopWordsPath)
+	err := common.LoadStopWords(stopWordsPath)
 	if err != nil {
 		fmt.Println(err)
 	}
