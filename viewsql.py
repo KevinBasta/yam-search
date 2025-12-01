@@ -2,7 +2,7 @@ import sqlite3
 
 conn = sqlite3.connect('out/index.db')
 cursor = conn.cursor()
-cursor.execute('SELECT docIds FROM termToDocs;')
+cursor.execute('SELECT postingList FROM termToPostingList WHERE term = \'noth\';')
 rows = cursor.fetchall()
 
 print("printing now")

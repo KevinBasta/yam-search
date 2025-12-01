@@ -41,3 +41,7 @@ func FormatWord(word *string) {
 
 	*word = strings.TrimFunc(*word, isPunctuation)
 }
+
+func Foo[T any](val T) {
+
+}

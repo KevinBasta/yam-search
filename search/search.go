@@ -28,10 +28,12 @@ func main() {
 		fmt.Println(err)
 	}
 
-	err = search(indexDB, "the ultra bahoo banana life photosynthesis of the negative postive plus love potato doesn't lie")
+	result, err := search(indexDB, "the ultra bahoo banana life photosynthesis of the negative postive plus love potato doesn't lie")
 	if err != nil {
 		fmt.Println(err)
 	}
+
+	stopwords.Foo(result)
 
 	// for key, val := range dictionary {
 	// 	println(key, val)

@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"math"
 	"sort"
 	"strings"
@@ -12,9 +11,9 @@ import (
 	"github.com/blevesearch/snowballstem/english"
 )
 
-type posting struct {
-	docId     int
-	frequency int
+type searchResult struct {
+	docId            int
+	cosineSimilarity float64
 }
 
 func loadTotalDocs(indexDB string) (int, error) {
@@ -34,7 +33,7 @@ func loadTotalDocs(indexDB string) (int, error) {
 	return totalDocs, nil
 }
 
-func getPostingList(indexDB string, term string) ([]posting, error) {
+func getPostingList(indexDB string, term string) (map[int]int, error) {
 	idb, ierr := sql.Open("sqlite", indexDB)
 	if ierr != nil {
 		return nil, ierr
@@ -42,14 +41,14 @@ func getPostingList(indexDB string, term string) ([]posting, error) {
 	defer idb.Close()
 
 	var jsonPostingList string
-	entry := idb.QueryRow("SELECT postingList FROM termToPostingList WHERE term = ?", term)
-	err := entry.Scan(&jsonPostingList)
-	if err != nil {
-		return nil, err
+	indexEntry := idb.QueryRow("SELECT postingList FROM termToPostingList WHERE term = ?", term)
+	indexErr := indexEntry.Scan(&jsonPostingList)
+	if indexErr != nil {
+		return nil, indexErr
 	}
 
-	var postingList []posting
-	err = json.Unmarshal([]byte(jsonPostingList), &postingList)
+	var postingList = make(map[int]int)
+	err := json.Unmarshal([]byte(jsonPostingList), &postingList)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +56,7 @@ func getPostingList(indexDB string, term string) ([]posting, error) {
 	return postingList, nil
 }
 
-// map: term -> weight = idf * tf
+// map: term -> (weight = idf * tf)
 func processQuery(query string) (map[string]float64, float64, error) {
 	var wordToFreqency = make(map[string]int)
 
@@ -88,7 +87,7 @@ func processQuery(query string) (map[string]float64, float64, error) {
 	var wordToWeight = make(map[string]float64)
 	for term, freq := range wordToFreqency {
 		var tf float64 = float64(1) + math.Log10(float64(freq))
-		wordToWeight[term] = tf * dictionary[term]
+		wordToWeight[term] = tf * dictionary[term] // tf * idf
 	}
 
 	// calculate length of query for cosine similarity
@@ -101,22 +100,21 @@ func processQuery(query string) (map[string]float64, float64, error) {
 	return wordToWeight, length, nil
 }
 
-func search(indexDB string, query string) error {
+func search(indexDB string, query string) ([]searchResult, error) {
 	// get query term weights and length
 	queryTermToWeight, queryLength, err := processQuery(query)
 	if err != nil {
-		fmt.Println(queryLength) // remove
-		return err
+		return nil, err
 	}
 
 	// get the posting list of each term in the query
-	var termToPostingList = make(map[string][]posting)
+	var termToPostingList = make(map[string]map[int]int)
 	for term, _ := range queryTermToWeight {
 		_, inDictionary := dictionary[term]
 		if inDictionary {
 			postingList, err := getPostingList(indexDB, term)
 			if err != nil {
-				return err
+				return nil, err
 			}
 
 			termToPostingList[term] = postingList
@@ -128,6 +126,12 @@ func search(indexDB string, query string) error {
 	for term, _ := range queryTermToWeight {
 		sortedQueryTerms = append(sortedQueryTerms, term)
 	}
+
+	// debug code for checking idf order before sorting
+	// for _, term := range sortedQueryTerms {
+	// 	fmt.Print(dictionary[term], " ")
+	// }
+	// fmt.Println("eof")
 
 	// sort query terms by idf
 	// switch to slices.SortFunc
@@ -142,13 +146,72 @@ func search(indexDB string, query string) error {
 			jIdf = 0
 		}
 
-		return iIdf < jIdf
+		return iIdf > jIdf
 	})
 
+	var docIdToCosineSimilarity = make(map[int]float64)
 	// search by highest idf term to lowest idf term
-	for _, term := range sortedQueryTerms {
-		fmt.Print(term)
+	for _, loopTerm := range sortedQueryTerms {
+		// calculate the cosine similarity between a document and the query
+
+		for docId, _ := range termToPostingList[loopTerm] {
+			_, hasScore := docIdToCosineSimilarity[docId]
+			if hasScore {
+				continue
+			}
+
+			// find each term in the query that is also in this document
+			var documentWordToWeight = make(map[string]float64)
+			for _, calcTerm := range sortedQueryTerms {
+				docFrequency, hasDoc := termToPostingList[calcTerm][docId]
+
+				if hasDoc {
+					// calculate the term frequency of document
+					var tf float64 = float64(1) + math.Log10(float64(docFrequency))
+					documentWordToWeight[calcTerm] = tf * dictionary[calcTerm]
+				} else {
+					documentWordToWeight[calcTerm] = 0
+				}
+			}
+
+			// calculate document length
+			var documentLength float64
+			for _, weight := range documentWordToWeight {
+				documentLength += math.Pow(weight, 2.0)
+			}
+			documentLength = math.Sqrt(documentLength)
+
+			// calculate cosine similarity
+			var numerator float64 = 0.0
+			for _, word := range sortedQueryTerms {
+				queryTermWeight, hasQueryTermWeight := queryTermToWeight[word]
+				documentTermWeight, hasDocumentTermWeight := documentWordToWeight[word]
+
+				if hasQueryTermWeight && hasDocumentTermWeight {
+					numerator += (queryTermWeight * documentTermWeight)
+				}
+			}
+
+			var cosineSimilarity float64 = numerator / (documentLength * queryLength)
+			docIdToCosineSimilarity[docId] = cosineSimilarity
+		}
 	}
 
-	return nil
+	// return only top 10 results
+	var pairs []searchResult
+	for k, v := range docIdToCosineSimilarity {
+		pairs = append(pairs, searchResult{docId: k, cosineSimilarity: v})
+	}
+
+	sort.Slice(pairs, func(i, j int) bool {
+		return pairs[i].cosineSimilarity > pairs[j].cosineSimilarity
+	})
+
+	topN := 10
+	if len(pairs) < topN {
+		topN = len(pairs)
+	}
+	top10 := pairs[:topN]
+
+	return top10, nil
 }

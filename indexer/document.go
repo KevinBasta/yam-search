@@ -17,11 +17,6 @@ type Document struct {
 	body  string
 }
 
-type posting struct {
-	docId     int
-	frequency int
-}
-
 func (doc *Document) getNextDocument(db *sql.DB) error {
 	doc.docId++
 
@@ -93,7 +88,8 @@ func (doc *Document) index(idb *sql.DB, ddb *sql.DB) error {
 		indexErr := indexEntry.Scan(&jsonPostingList)
 		if indexErr != nil {
 			// create a json list with this docId
-			var postingList = [1]posting{{doc.docId, frequency}}
+			var postingList = make(map[int]int)
+			postingList[doc.docId] = frequency
 			updatedJsonPostingList, err := json.Marshal(postingList)
 			if err != nil {
 				return err
@@ -106,15 +102,14 @@ func (doc *Document) index(idb *sql.DB, ddb *sql.DB) error {
 			}
 		} else {
 			// get already written docIds
-			var postingList []posting
+			var postingList = make(map[int]int)
 			err := json.Unmarshal([]byte(jsonPostingList), &postingList)
 			if err != nil {
 				return err
 			}
 
 			// add this docId
-			newEntry := posting{doc.docId, frequency}
-			postingList = append(postingList, newEntry)
+			postingList[doc.docId] = frequency
 			updatedJsonPostingList, err := json.Marshal(postingList)
 			if err != nil {
 				return err
