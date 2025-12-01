@@ -11,6 +11,8 @@ import (
 
 var indexDB string = "../out/index.db"
 var collectionDB string = "../out/document_collection.db"
+var cosineWeight float64 = 0.9
+var pagerankWeight float64 = 1 - cosineWeight
 
 type Response struct {
 	Results []searchResult `json:"results"`
@@ -19,7 +21,7 @@ type Response struct {
 func searchHandler(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query().Get("q")
 
-	results, err := search(indexDB, collectionDB, query)
+	results, err := search(indexDB, collectionDB, query, cosineWeight, pagerankWeight)
 	if err != nil {
 		fmt.Println(err)
 	}

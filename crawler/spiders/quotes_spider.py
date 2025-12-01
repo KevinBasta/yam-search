@@ -19,7 +19,7 @@ class QuotesSpider(scrapy.Spider):
         conn = sqlite3.connect('out/document_collection.db')
         cursor = conn.cursor()
         cursor.execute("DROP TABLE IF EXISTS docIdToData;")
-        cursor.execute('CREATE TABLE docIdToData (docId INTEGER PRIMARY KEY, url TEXT, title TEXT, body TEXT, pagerank INTEGER);')
+        cursor.execute('CREATE TABLE docIdToData (docId INTEGER PRIMARY KEY, url TEXT, title TEXT, body TEXT, pagerank REAL);')
         conn.commit()
         conn.close()
 
@@ -32,7 +32,7 @@ class QuotesSpider(scrapy.Spider):
         cursor = conn.cursor()
         cursor.execute(
                 "INSERT INTO docIdToData (docId, url, title, body, pagerank) VALUES (?, ?, ?, ?, ?)",
-                (self.docId, url, title, body, 0)
+                (self.docId, url, title, body, 0.0)
             )
         conn.commit()
         conn.close()

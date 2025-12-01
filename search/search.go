@@ -12,8 +12,8 @@ import (
 )
 
 type searchResult struct {
-	DocUrl           string
-	CosineSimilarity float64
+	DocUrl     string
+	Similarity float64
 }
 
 func loadTotalDocs(indexDB string) (int, error) {
@@ -73,6 +73,23 @@ func getDocumentLength(indexDB string, docId int) (float64, error) {
 	return docLength, nil
 }
 
+func getDocumentPagerank(collectionDB string, docId int) (float64, error) {
+	cdb, cerr := sql.Open("sqlite", collectionDB)
+	if cerr != nil {
+		return 0.0, cerr
+	}
+	defer cdb.Close()
+
+	var docPageRank float64
+	collectionEntry := cdb.QueryRow("SELECT pagerank FROM docIdToData WHERE docID = ?", docId)
+	collectionErr := collectionEntry.Scan(&docPageRank)
+	if collectionErr != nil {
+		return 0.0, collectionErr
+	}
+
+	return docPageRank, nil
+}
+
 // map: term -> (weight = idf * tf)
 func processQuery(query string) (map[string]float64, float64, error) {
 	var wordToFreqency = make(map[string]int)
@@ -121,7 +138,7 @@ func processQuery(query string) (map[string]float64, float64, error) {
 	return wordToWeight, length, nil
 }
 
-func search(indexDB string, collectionDB string, query string) ([]searchResult, error) {
+func search(indexDB string, collectionDB string, query string, cosineWeight float64, pagerankWeight float64) ([]searchResult, error) {
 	// get query term weights and length
 	queryTermToWeight, queryLength, err := processQuery(query)
 	if err != nil {
@@ -170,7 +187,7 @@ func search(indexDB string, collectionDB string, query string) ([]searchResult, 
 		return iIdf > jIdf
 	})
 
-	var docIdToCosineSimilarity = make(map[int]float64)
+	var docIdToSimilarity = make(map[int]float64)
 	// search by highest idf term to lowest idf term
 	for _, loopTerm := range sortedQueryTerms {
 		// cut off if idf is 0
@@ -182,7 +199,7 @@ func search(indexDB string, collectionDB string, query string) ([]searchResult, 
 		// calculate the cosine similarity between a document and the query
 
 		for docId, _ := range termToPostingList[loopTerm] {
-			_, hasScore := docIdToCosineSimilarity[docId]
+			_, hasScore := docIdToSimilarity[docId]
 			if hasScore {
 				continue
 			}
@@ -209,6 +226,12 @@ func search(indexDB string, collectionDB string, query string) ([]searchResult, 
 				return nil, err
 			}
 
+			// fetch document pagerank score
+			documentPageRank, err := getDocumentPagerank(collectionDB, docId)
+			if err != nil {
+				return nil, err
+			}
+
 			// calculate cosine similarity
 			var numerator float64 = 0.0
 			for _, word := range sortedQueryTerms {
@@ -227,7 +250,7 @@ func search(indexDB string, collectionDB string, query string) ([]searchResult, 
 			}
 
 			// fmt.Println(numerator, documentLength, queryLength, cosineSimilarity)
-			docIdToCosineSimilarity[docId] = cosineSimilarity
+			docIdToSimilarity[docId] = (cosineSimilarity * cosineWeight) + (documentPageRank * pagerankWeight)
 		}
 	}
 
@@ -239,7 +262,7 @@ func search(indexDB string, collectionDB string, query string) ([]searchResult, 
 	defer cdb.Close()
 
 	var pairs []searchResult
-	for docId, cosineSimilarity := range docIdToCosineSimilarity {
+	for docId, similarity := range docIdToSimilarity {
 		var url string
 		row := cdb.QueryRow("SELECT url FROM docIdToData WHERE docId = ?", docId)
 		err := row.Scan(&url)
@@ -248,11 +271,11 @@ func search(indexDB string, collectionDB string, query string) ([]searchResult, 
 		}
 
 		//fmt.Println(docId, cosineSimilarity)
-		pairs = append(pairs, searchResult{DocUrl: url, CosineSimilarity: cosineSimilarity})
+		pairs = append(pairs, searchResult{DocUrl: url, Similarity: similarity})
 	}
 
 	sort.Slice(pairs, func(i, j int) bool {
-		return pairs[i].CosineSimilarity > pairs[j].CosineSimilarity
+		return pairs[i].Similarity > pairs[j].Similarity
 	})
 
 	topN := 10
