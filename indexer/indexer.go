@@ -29,6 +29,11 @@ func createIndex(collectionDB string, indexDB string, dictionaryDB string) error
 		return err
 	}
 
+	_, err = idb.Exec("CREATE TABLE docIdToLength (docId INTEGER PRIMARY KEY, length REAL);")
+	if err != nil {
+		return err
+	}
+
 	_, err = idb.Exec("CREATE TABLE metadata (key TEXT PRIMARY KEY, value INTEGER);")
 	if err != nil {
 		return err
@@ -61,6 +66,12 @@ func createIndex(collectionDB string, indexDB string, dictionaryDB string) error
 		err = doc.index(idb, ddb)
 		fmt.Println(err)
 	}
+
+	// Batch write out any remaining documents postings and dictionary cache
+	batchWriteOutPostingList(idb, ddb)
+	clear(postingListAccumulator)
+	clear(termToFrequencyAccumulator)
+	documentSerializeAmount = 0
 
 	// Output totalDocuments metadata
 	_, err = idb.Exec("INSERT INTO metadata(key, value) VALUES(?, ?)", "totalDocs", doc.docId)
