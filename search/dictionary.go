@@ -2,7 +2,6 @@ package main
 
 import (
 	"database/sql"
-	"math"
 
 	_ "modernc.org/sqlite" // Import the SQLite driver
 )
@@ -19,7 +18,7 @@ func loadDictionary(dictionaryDB string, totalDocs int) error {
 	defer ddb.Close()
 
 	// query for all terms
-	rows, err := ddb.Query("SELECT * FROM termToFrequency")
+	rows, err := ddb.Query("SELECT * FROM termToIdf;")
 	if err != nil {
 		return err
 	}
@@ -28,13 +27,13 @@ func loadDictionary(dictionaryDB string, totalDocs int) error {
 	// add each term to dictionary
 	for rows.Next() {
 		var term string
-		var frequency int
-		if err := rows.Scan(&term, &frequency); err != nil {
+		var idf float64
+		if err := rows.Scan(&term, &idf); err != nil {
 			return err
 		}
 
 		// calculate idf and set it to the term in dict
-		dictionary[term] = math.Log10((float64(totalDocs) / float64(frequency)))
+		dictionary[term] = idf
 	}
 
 	if err = rows.Err(); err != nil {

@@ -5,15 +5,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"math"
 	"strings"
 
 	"github.com/KevinBasta/yam-search/common"
 	"github.com/blevesearch/snowballstem/english"
 )
 
+// Batch write
 var documentSerializeAmount int = 0
 var postingListAccumulator = make(map[string]map[int]int)
-var termToFrequencyAccumulator = make(map[string]int)
+
+// Write only at the end
+var termToDocumentFrequency = make(map[string]int)
+var termToIdf = make(map[string]float64)
 
 type Document struct {
 	docId int
@@ -38,7 +43,7 @@ func (doc *Document) getNextDocument(db *sql.DB) error {
 	return nil
 }
 
-func batchWriteOutPostingList(idb *sql.DB, ddb *sql.DB) error {
+func batchWriteOutPostingList(idb *sql.DB) error {
 	// term -> docIds
 	for word, postingMap := range postingListAccumulator {
 		var jsonPostingList string
@@ -77,36 +82,34 @@ func batchWriteOutPostingList(idb *sql.DB, ddb *sql.DB) error {
 				return err
 			}
 		}
-
-	}
-
-	// term -> frequency
-	for word, frequency := range termToFrequencyAccumulator {
-		var currentDocumentFrequency int
-		dictionaryEntry := ddb.QueryRow("SELECT frequency FROM termToFrequency WHERE term = ?", word)
-		dictionaryErr := dictionaryEntry.Scan(&currentDocumentFrequency)
-		if dictionaryErr != nil {
-			// handle term not being in term -> frequency
-			_, err := ddb.Exec("INSERT INTO termToFrequency(term, frequency) VALUES(?, ?)", word, frequency)
-			if err != nil {
-				return err
-			}
-		} else {
-			// handle term being in term -> frequency
-			updatedDocumentFrequency := currentDocumentFrequency + frequency
-			_, err := ddb.Exec("UPDATE termToFrequency set frequency = ? WHERE term = ?", updatedDocumentFrequency, word)
-			if err != nil {
-				return err
-			}
-		}
 	}
 
 	return nil
 }
 
-func (doc *Document) index(idb *sql.DB, ddb *sql.DB) error {
+func writeOutDictionary(ddb *sql.DB, totalDocs int) error {
+	// write out term -> idf (inverse document frequency)
+	for word, frequency := range termToDocumentFrequency {
+		// calculate idf, store it in map, and commit it to db
+		var idf float64 = math.Log10((float64(totalDocs) / float64(frequency)))
+		termToIdf[word] = idf
+
+		_, err := ddb.Exec("INSERT INTO termToIdf(term, idf) VALUES(?, ?)", word, idf)
+		if err != nil {
+			return err
+		}
+	}
+
+	// clear term -> frequency as it's no longer needed
+	clear(termToDocumentFrequency)
+
+	return nil
+}
+
+func (doc *Document) index(idb *sql.DB) error {
 	fmt.Println("Indexing ", doc.docId)
 
+	var docTerms []string
 	var wordToFreqency = make(map[string]int)
 
 	// loop through words in body of document
@@ -129,6 +132,7 @@ func (doc *Document) index(idb *sql.DB, ddb *sql.DB) error {
 		english.Stem(common.SnowballEnv)
 		word = common.SnowballEnv.Current()
 
+		docTerms = append(docTerms, word)
 		wordToFreqency[word]++
 	}
 
@@ -140,15 +144,25 @@ func (doc *Document) index(idb *sql.DB, ddb *sql.DB) error {
 		}
 		postingListAccumulator[word][doc.docId] = frequency
 
-		termToFrequencyAccumulator[word]++
+		termToDocumentFrequency[word]++
 	}
 	documentSerializeAmount++
 
+	// update docIdToTerms table for length calculation later
+	jsonDocIdToTerms, err := json.Marshal(docTerms)
+	if err != nil {
+		return err
+	}
+
+	_, err = idb.Exec("INSERT INTO docIdToTerms(docId, terms) VALUES(?, ?)", doc.docId, jsonDocIdToTerms)
+	if err != nil {
+		return err
+	}
+
 	// perform batch write if above 10 docs
 	if documentSerializeAmount >= 500 {
-		batchWriteOutPostingList(idb, ddb)
+		batchWriteOutPostingList(idb)
 		clear(postingListAccumulator)
-		clear(termToFrequencyAccumulator)
 		documentSerializeAmount = 0
 	}
 
