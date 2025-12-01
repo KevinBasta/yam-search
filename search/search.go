@@ -1,17 +1,47 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"log"
+	"net/http"
 
 	"github.com/KevinBasta/yam-search/stopwords"
 )
 
+var indexDB string = "../out/index.db"
+var collectionDB string = "../out/document_collection.db"
+
+type Response struct {
+	Results []searchResult `json:"results"`
+}
+
+func searchHandler(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query().Get("q")
+
+	results, err := search(indexDB, collectionDB, query)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	response := Response{
+		Results: results,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	err = json.NewEncoder(w).Encode(response)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
 func main() {
-	//collectionDB := "../out/document_collection.db"
-	indexDB := "../out/index.db"
 	dictionaryDB := "../out/dictionary.db"
 	stopWordsPath := "../out/stopwords.txt"
 
+	// Load stop words, total doc amount, and dictionary
 	err := stopwords.LoadStopWords(stopWordsPath)
 	if err != nil {
 		fmt.Println(err)
@@ -21,22 +51,17 @@ func main() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	fmt.Println("total docs: ", totalDocs)
+	// fmt.Println("total docs: ", totalDocs)
 
 	err = loadDictionary(dictionaryDB, totalDocs)
 	if err != nil {
 		fmt.Println(err)
 	}
+	// for key, val := range dictionary { println(key, val) }
 
-	result, err := search(indexDB, "the ultra bahoo banana life photosynthesis of the negative postive plus love potato doesn't lie")
-	if err != nil {
-		fmt.Println(err)
-	}
+	// register search endpoint and start server on port 8080
+	http.HandleFunc("/search", searchHandler)
 
-	stopwords.Foo(result)
-
-	// for key, val := range dictionary {
-	// 	println(key, val)
-	// }
-
+	fmt.Println("Server starting on http://localhost:8080")
+	log.Fatal(http.ListenAndServe(":8080", nil))
 }
