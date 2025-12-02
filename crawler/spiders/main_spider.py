@@ -1,16 +1,22 @@
 from collections import defaultdict
 from pathlib import Path
+import re
+from urllib.parse import urljoin, urlparse
 import scrapy
 from bs4 import BeautifulSoup
 import sqlite3
 import numpy as np
+from wordfreq import zipf_frequency
+from spellchecker import SpellChecker
+
+spell = SpellChecker()
 
 class QuotesSpider(scrapy.Spider):
     name = "crawler"
     start_urls = [
         # "https://quotes.toscrape.com/page/1/",
         "https://en.wikipedia.org/wiki/Computer_network",
-        "https://en.wikipedia.org/wiki/Yam_(vegetable)"
+        # "https://en.wikipedia.org/wiki/Yam_(vegetable)"
     ]
 
     def __init__(self):
@@ -33,6 +39,12 @@ class QuotesSpider(scrapy.Spider):
         # increase docId for current doc
         self.docId += 1
 
+        if not title:
+            title = " "
+        
+        if not body:
+            body = " "
+
         # add row to doc table
         self.cursor.execute(
                 "INSERT INTO docIdToData (docId, url, title, body, pagerank) VALUES (?, ?, ?, ?, ?);",
@@ -42,6 +54,26 @@ class QuotesSpider(scrapy.Spider):
 
         # set mapping for pagerank lookup to update record
         self.url_to_docId[url] = self.docId
+
+    def is_invalid_url(self, url):
+        if url.lower().startswith("mailto:"):
+            return True
+         
+        unwanted_extensions = [".pdf", ".jpg", ".jpeg", ".png", ".gif", ".zip", ".docx", ".xls", ".mp3", ".mp4"]
+        if any(url.lower().endswith(ext) for ext in unwanted_extensions):
+            return True
+        
+        if "?" in url or "#" in url:
+            return True
+        
+        if not url or len(url.strip()) == 0:
+            return True
+        
+        parsed_url = urlparse(url)
+        if parsed_url.netloc == '':
+            return True
+
+        return False
 
     def parse(self, response, parent_url=None):
         current_url = response.url
@@ -61,12 +93,27 @@ class QuotesSpider(scrapy.Spider):
             
             # remove all html tags, keep their content
             title = response.css('title::text').get()
-            body = BeautifulSoup(response.body, features="html.parser").get_text()
+            parsed_text = response.body
+            if "wikipedia" in current_url:
+                parsed_text = response.css("div.mw-body-content").get()
+            body = BeautifulSoup(parsed_text, features="html.parser").get_text()
             self.writeToDB(response.url, title, body)
             yield {}
 
             anchors = response.css("a")
-            yield from response.follow_all(anchors, callback=self.parse, cb_kwargs={"parent_url": response.url})
+            if "wikipedia" in current_url:
+                anchors = response.css("div.mw-body-content a")
+                
+            for anchor in anchors:
+                link = anchor.attrib.get('href')
+                if link:
+                    absolute_link = urljoin(current_url, link)
+                    if absolute_link and not self.is_invalid_url(absolute_link):
+                        if "wikipedia" in absolute_link:
+                            if "/wiki/" in link and "Category" not in link:
+                                yield response.follow(link, callback=self.parse, cb_kwargs={"parent_url": current_url})
+                        else:
+                            yield response.follow(link, callback=self.parse, cb_kwargs={"parent_url": current_url})
         else:
             yield {}
 

@@ -3,8 +3,8 @@ package common
 import (
 	"bufio"
 	"os"
+	"regexp"
 	"strings"
-	"unicode"
 
 	"github.com/blevesearch/snowballstem"
 )
@@ -33,13 +33,21 @@ func LoadStopWords(path string) error {
 }
 
 func FormatWord(word *string) {
-	*word = strings.ToLower(*word)
-
-	isPunctuation := func(c rune) bool {
-		return !unicode.IsLetter(c) && !unicode.IsNumber(c)
+	splitDelimiters := regexp.MustCompile(`[^A-Za-z]+`)
+	parts := splitDelimiters.Split(*word, -1)
+	if len(parts) == 0 {
+		*word = ""
+		return
 	}
 
-	*word = strings.TrimFunc(*word, isPunctuation)
+	for _, p := range parts {
+		if p != "" {
+			*word = p
+			break
+		}
+	}
+
+	*word = strings.ToLower(*word)
 }
 
 func Foo[T any](val T) {

@@ -14,8 +14,8 @@ NEWSPIDER_MODULE = "crawler.spiders"
 
 ADDONS = {}
 
-CLOSESPIDER_PAGECOUNT = 50
-
+CLOSESPIDER_PAGECOUNT = 650
+DEPTH_PRIORITY = 1 # force BFS instead of DFS
 
 # Crawl responsibly by identifying yourself (and your website) on the user-agent
 #USER_AGENT = "crawler (+http://www.yourdomain.com)"
