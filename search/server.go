@@ -42,22 +42,23 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	dictionaryDB := "../out/dictionary.db"
+	// Load stop words for query processing
 	stopWordsPath := "../out/stopwords.txt"
-
-	// Load stop words, total doc amount, and dictionary
 	err := common.LoadStopWords(stopWordsPath)
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	totalDocs, err := loadTotalDocs(indexDB)
-	if err != nil {
-		fmt.Println(err)
-	}
+	// No longer need total docs as idf is calculated by indexer
+	// totalDocs, err := loadTotalDocs(indexDB)
+	// if err != nil {
+	// 	fmt.Println(err)
+	// }
 	// fmt.Println("total docs: ", totalDocs)
 
-	err = loadDictionary(dictionaryDB, totalDocs)
+	// load docId -> idf mapping for cosine similarity
+	dictionaryDB := "../out/dictionary.db"
+	err = loadDictionary(dictionaryDB)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -65,7 +66,6 @@ func main() {
 
 	// register search endpoint and start server on port 8080
 	http.HandleFunc("/search", searchHandler)
-
 	fmt.Println("Server starting on http://localhost:8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }

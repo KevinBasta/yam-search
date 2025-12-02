@@ -16,23 +16,6 @@ type searchResult struct {
 	Similarity float64
 }
 
-func loadTotalDocs(indexDB string) (int, error) {
-	idb, ierr := sql.Open("sqlite", indexDB)
-	if ierr != nil {
-		return 0, ierr
-	}
-	defer idb.Close()
-
-	var totalDocs int
-	entry := idb.QueryRow("SELECT value FROM metadata WHERE key = ?", "totalDocs")
-	err := entry.Scan(&totalDocs)
-	if err != nil {
-		return 0, err
-	}
-
-	return totalDocs, nil
-}
-
 func getPostingList(indexDB string, term string) (map[int]int, error) {
 	idb, ierr := sql.Open("sqlite", indexDB)
 	if ierr != nil {

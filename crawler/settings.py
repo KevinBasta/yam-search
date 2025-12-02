@@ -14,7 +14,7 @@ NEWSPIDER_MODULE = "crawler.spiders"
 
 ADDONS = {}
 
-CLOSESPIDER_PAGECOUNT = 5
+CLOSESPIDER_PAGECOUNT = 50
 
 
 # Crawl responsibly by identifying yourself (and your website) on the user-agent
