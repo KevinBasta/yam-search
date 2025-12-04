@@ -17,9 +17,15 @@ func loadDictionary(dictionaryDB string) error {
 	}
 	defer ddb.Close()
 
-	// query for all terms
-	rows, err := ddb.Query("SELECT * FROM termToIdf;")
+	tx, err := ddb.Begin()
 	if err != nil {
+		return err
+	}
+
+	// query for all terms
+	rows, err := tx.Query("SELECT * FROM termToIdf;")
+	if err != nil {
+		_ = tx.Rollback()
 		return err
 	}
 	defer rows.Close()
@@ -29,6 +35,7 @@ func loadDictionary(dictionaryDB string) error {
 		var term string
 		var idf float64
 		if err := rows.Scan(&term, &idf); err != nil {
+			_ = tx.Rollback()
 			return err
 		}
 
@@ -37,6 +44,11 @@ func loadDictionary(dictionaryDB string) error {
 	}
 
 	if err = rows.Err(); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
 		return err
 	}
 

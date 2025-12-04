@@ -16,15 +16,9 @@ type searchResult struct {
 	Similarity float64
 }
 
-func getPostingList(indexDB string, term string) (map[int]int, error) {
-	idb, ierr := sql.Open("sqlite", indexDB)
-	if ierr != nil {
-		return nil, ierr
-	}
-	defer idb.Close()
-
+func getPostingList(tx *sql.Tx, term string) (map[int]int, error) {
 	var jsonPostingList string
-	indexEntry := idb.QueryRow("SELECT postingList FROM termToPostingList WHERE term = ?", term)
+	indexEntry := tx.QueryRow("SELECT postingList FROM termToPostingList WHERE term = ?", term)
 	indexErr := indexEntry.Scan(&jsonPostingList)
 	if indexErr != nil {
 		return nil, indexErr
@@ -39,15 +33,9 @@ func getPostingList(indexDB string, term string) (map[int]int, error) {
 	return postingList, nil
 }
 
-func getDocumentLength(indexDB string, docId int) (float64, error) {
-	idb, ierr := sql.Open("sqlite", indexDB)
-	if ierr != nil {
-		return 0.0, ierr
-	}
-	defer idb.Close()
-
+func getDocumentLength(tx *sql.Tx, docId int) (float64, error) {
 	var docLength float64
-	indexEntry := idb.QueryRow("SELECT length FROM docIdToLength WHERE docID = ?", docId)
+	indexEntry := tx.QueryRow("SELECT length FROM docIdToLength WHERE docID = ?", docId)
 	indexErr := indexEntry.Scan(&docLength)
 	if indexErr != nil {
 		return 0.0, indexErr
@@ -56,13 +44,7 @@ func getDocumentLength(indexDB string, docId int) (float64, error) {
 	return docLength, nil
 }
 
-func getDocumentPagerank(collectionDB string, docId int) (float64, error) {
-	cdb, cerr := sql.Open("sqlite", collectionDB)
-	if cerr != nil {
-		return 0.0, cerr
-	}
-	defer cdb.Close()
-
+func getDocumentPagerank(tx *sql.Tx, docId int) (float64, error) {
 	var docPageRank float64
 	collectionEntry := cdb.QueryRow("SELECT pagerank FROM docIdToData WHERE docID = ?", docId)
 	collectionErr := collectionEntry.Scan(&docPageRank)
@@ -121,9 +103,15 @@ func processQuery(query string) (map[string]float64, float64, error) {
 	return wordToWeight, length, nil
 }
 
-func search(indexDB string, collectionDB string, query string, cosineWeight float64, pagerankWeight float64) ([]searchResult, error) {
+func search(idb *sql.DB, cdb *sql.DB, query string, cosineWeight float64, pagerankWeight float64) ([]searchResult, error) {
 	// get query term weights and length
 	queryTermToWeight, queryLength, err := processQuery(query)
+	if err != nil {
+		return nil, err
+	}
+
+	// create transaction for fetching posting lists and document lengths
+	itx, err := idb.Begin()
 	if err != nil {
 		return nil, err
 	}
@@ -133,8 +121,9 @@ func search(indexDB string, collectionDB string, query string, cosineWeight floa
 	for term, _ := range queryTermToWeight {
 		_, inDictionary := dictionary[term]
 		if inDictionary {
-			postingList, err := getPostingList(indexDB, term)
+			postingList, err := getPostingList(itx, term)
 			if err != nil {
+				itx.Rollback()
 				return nil, err
 			}
 
@@ -170,6 +159,12 @@ func search(indexDB string, collectionDB string, query string, cosineWeight floa
 		return iIdf > jIdf
 	})
 
+	// create transaction for getting pagerank scores
+	ctx, err := cdb.Begin()
+	if err != nil {
+		return nil, err
+	}
+
 	var docIdToSimilarity = make(map[int]float64)
 	// search by highest idf term to lowest idf term
 	for _, loopTerm := range sortedQueryTerms {
@@ -204,14 +199,16 @@ func search(indexDB string, collectionDB string, query string, cosineWeight floa
 			}
 
 			// fetch document length
-			documentLength, err := getDocumentLength(indexDB, docId)
+			documentLength, err := getDocumentLength(itx, docId)
 			if err != nil {
+				_ = itx.Rollback()
 				return nil, err
 			}
 
 			// fetch document pagerank score
-			documentPageRank, err := getDocumentPagerank(collectionDB, docId)
+			documentPageRank, err := getDocumentPagerank(ctx, docId)
 			if err != nil {
+				_ = ctx.Rollback()
 				return nil, err
 			}
 
@@ -237,17 +234,16 @@ func search(indexDB string, collectionDB string, query string, cosineWeight floa
 		}
 	}
 
-	// return only top 10 results
-	cdb, cerr := sql.Open("sqlite", collectionDB)
-	if cerr != nil {
-		return nil, cerr
+	// commit all index db operations
+	if err := itx.Commit(); err != nil {
+		return nil, err
 	}
-	defer cdb.Close()
 
+	// return only top 10 results
 	var pairs []searchResult
 	for docId, similarity := range docIdToSimilarity {
 		var url string
-		row := cdb.QueryRow("SELECT url FROM docIdToData WHERE docId = ?", docId)
+		row := ctx.QueryRow("SELECT url FROM docIdToData WHERE docId = ?", docId)
 		err := row.Scan(&url)
 		if err != nil {
 			return nil, err
@@ -255,6 +251,11 @@ func search(indexDB string, collectionDB string, query string, cosineWeight floa
 
 		//fmt.Println(docId, cosineSimilarity)
 		pairs = append(pairs, searchResult{DocUrl: url, Similarity: similarity})
+	}
+
+	// commit all collection db operations
+	if err := ctx.Commit(); err != nil {
+		return nil, err
 	}
 
 	sort.Slice(pairs, func(i, j int) bool {

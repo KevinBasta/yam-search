@@ -2,9 +2,7 @@ package main
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
-	"math"
 	"os"
 
 	"github.com/KevinBasta/yam-search/common"
@@ -65,13 +63,13 @@ func createIndex(collectionDB string, indexDB string, dictionaryDB string) error
 	for {
 		err = doc.getNextDocument(cdb)
 		if err != nil {
-			fmt.Println(err)
+			// fmt.Println(err)
 			fmt.Println("Finished indexing")
 			break
 		}
 
 		err = doc.index(idb)
-		fmt.Println(err)
+		// fmt.Println(err)
 	}
 	var totalDocs = doc.docId
 
@@ -81,73 +79,20 @@ func createIndex(collectionDB string, indexDB string, dictionaryDB string) error
 	documentSerializeAmount = 0
 
 	// Write out the dictionary
-	writeOutDictionary(ddb, totalDocs)
-
-	// Calculate document lengths
-	var docIdToLength = make(map[int]float64)
-
-	rows, err := idb.Query("SELECT * FROM docIdToTerms;")
+	err = writeOutDictionary(ddb, totalDocs)
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
 
-	for rows.Next() {
-		// Get document terms from db
-		var docId int
-		var jsonTerms string
-		if err := rows.Scan(&docId, &jsonTerms); err != nil {
-			return err
-		}
-
-		var docTerms []string
-		err := json.Unmarshal([]byte(jsonTerms), &docTerms)
-		if err != nil {
-			return err
-		}
-
-		var documentLength float64
-		for _, term := range docTerms {
-			// get the frequency of term in document
-			var tf float64 = 0.0
-
-			var jsonPostingList string
-			indexEntry := idb.QueryRow("SELECT postingList FROM termToPostingList WHERE term = ?", term)
-			indexErr := indexEntry.Scan(&jsonPostingList)
-			if indexErr != nil {
-				return indexErr
-			} else {
-				var postingMap = make(map[int]int)
-				err := json.Unmarshal([]byte(jsonPostingList), &postingMap)
-				if err != nil {
-					return err
-				}
-
-				frequency, frequencyOk := postingMap[docId]
-				if !frequencyOk {
-					continue
-				} else {
-					if frequency > 0 {
-						tf = float64(1) + math.Log10(float64(frequency))
-					}
-				}
-			}
-
-			// calculate weight and add it to length calculation
-			idf, idfOk := termToIdf[term]
-			if !idfOk {
-				continue
-			}
-
-			var weight float64 = idf * tf
-			documentLength += math.Pow(weight, 2.0)
-		}
-		documentLength = math.Sqrt(documentLength)
-
-		docIdToLength[docId] = documentLength
+	// Calculate document lengths
+	err = calculateDocumentLengths(idb)
+	if err != nil {
+		return err
 	}
 
-	if err = rows.Err(); err != nil {
+	// Write out document lengths
+	err = writeOutDocumentLengths(idb)
+	if err != nil {
 		return err
 	}
 
@@ -155,14 +100,6 @@ func createIndex(collectionDB string, indexDB string, dictionaryDB string) error
 	_, err = idb.Exec("DROP TABLE docIdToTerms;")
 	if err != nil {
 		return err
-	}
-
-	// Write out new docId to length mapping
-	for docId, length := range docIdToLength {
-		_, err = idb.Exec("INSERT INTO docIdToLength(docId, length) VALUES(?, ?)", docId, length)
-		if err != nil {
-			return err
-		}
 	}
 
 	// Write out totalDocuments metadata
