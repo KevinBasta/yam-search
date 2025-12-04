@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- <meta http-equiv="X-UA-Compatible" content="ie=edge"> -->
+    <title>Yam Search Test Website</title>
+    <!-- <link rel="stylesheet" href="./style.css"> -->
+    <!-- <link rel="icon" href="./favicon.ico" type="image/x-icon"> -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <style>
+        .result {
+            padding: 10px;
+        }
+    </style>
+</head>
+
+  <body>
+    <main>
+        <h1>Yam Search</h1>  
+        <div class="search-container">
+            <input id="searchQuery" type="text" placeholder="Search.." name="search">
+            <button id="searchButton" onclick="search()"><i class="fa fa-search"></i></button>
+        </div>
+
+        <h2>Results</h2>
+        <div id="results"></div>
+
+    </main>
+    <script>
+        const query = document.getElementById("searchQuery");
+        const results = document.getElementById("results");
+
+        async function search() {
+            results.innerHTML = "Searching...";
+
+            try {
+                // Need encodeURIComponent to put in the special characters denoting spaces for example
+                const res = await fetch("http://localhost:8080/search?q=" + encodeURIComponent(query.value));
+                const data = await res.json();
+
+                console.log(data);
+
+                if (!data.results || data.results.length == 0) {
+                    results.innerHTML = "Zero results...";
+                    return;
+                }
+                
+                results.innerHTML = "";
+                data.results.forEach(item => {
+                    const container = document.createElement("div");
+                    container.className = "result"
+
+                    const link = document.createElement("a");
+                    link.href = item.DocUrl;
+                    link.textContent = item.DocUrl;
+                    link.target = "_blank";
+
+                    const sim = document.createElement("div");
+                    sim.className = "sim";
+                    sim.textContent = "Similarity: " + (item.Similarity).toFixed(5);
+
+                    container.appendChild(link);
+                    container.appendChild(sim);
+                    results.appendChild(container);
+                });
+
+            } catch (err) {
+                console.error(err);
+                results.innerHTML = "Error fetching results...";
+            }
+        }
+    </script>
+  </body>
+</html>

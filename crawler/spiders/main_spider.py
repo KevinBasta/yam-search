@@ -50,7 +50,6 @@ class QuotesSpider(scrapy.Spider):
                 "INSERT INTO docIdToData (docId, url, title, body, pagerank) VALUES (?, ?, ?, ?, ?);",
                 (self.docId, url, title, body, 0.0)
         )
-        self.conn.commit()
 
         # set mapping for pagerank lookup to update record
         self.url_to_docId[url] = self.docId
@@ -108,12 +107,8 @@ class QuotesSpider(scrapy.Spider):
                 link = anchor.attrib.get('href')
                 if link:
                     absolute_link = urljoin(current_url, link)
-                    if absolute_link and not self.is_invalid_url(absolute_link):
-                        if "wikipedia" in absolute_link:
-                            if "/wiki/" in link and "Category" not in link:
-                                yield response.follow(link, callback=self.parse, cb_kwargs={"parent_url": current_url})
-                        else:
-                            yield response.follow(link, callback=self.parse, cb_kwargs={"parent_url": current_url})
+                    if absolute_link and not self.is_invalid_url(absolute_link) and "wikipedia" in absolute_link and "/wiki/" in link and "Category" not in link:
+                        yield response.follow(link, callback=self.parse, cb_kwargs={"parent_url": current_url})
         else:
             yield {}
 
@@ -155,12 +150,13 @@ class QuotesSpider(scrapy.Spider):
 
         ordered_urls = list(self.url_to_index)
         
+        self.conn.commit()
         for url in ordered_urls:
             docId = self.url_to_docId[url]
             index = self.url_to_index[url]
 
             self.cursor.execute("UPDATE docIdToData SET pagerank = ? WHERE docId = ?", (rank[index], docId))
-            self.conn.commit()
+        self.conn.commit()
         
         self.conn.close()
             

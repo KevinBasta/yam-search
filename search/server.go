@@ -33,6 +33,7 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		Results: results,
 	}
 
+	w.Header().Set("Access-Control-Allow-Origin", "null")
 	w.Header().Set("Content-Type", "application/json")
 
 	err = json.NewEncoder(w).Encode(response)

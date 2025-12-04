@@ -246,6 +246,7 @@ func search(idb *sql.DB, cdb *sql.DB, query string, cosineWeight float64, pagera
 		row := ctx.QueryRow("SELECT url FROM docIdToData WHERE docId = ?", docId)
 		err := row.Scan(&url)
 		if err != nil {
+			_ = ctx.Rollback()
 			return nil, err
 		}
 
